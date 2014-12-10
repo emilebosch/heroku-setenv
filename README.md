@@ -3,15 +3,21 @@
 **OBJECTIVE:** Make environment management easy to manage and prevent clusterfucks. Additionally encrypt enviroment so we can just version it.
 
 - Allows setting env for services (prod/dev/staging/etc)
-- Make visible what teh enviroments are runing
+- Make visible what the enviroments are runing
 - Allows encryption fo env so safe to check in to git
-- Optionally prevent boot when env are not set
-- Infer environmetns from git heroku remotes
+- Optionally prevent boot of app when env are  not set
+- Infer environments from git heroku remotes
 
 To use:
 
 - Define services (with staging/production/etc)
 - Apply environments
+
+Dependencies:
+
+- GPG
+- Heroku Toolbelt
+
 
 ### Setting up
 
