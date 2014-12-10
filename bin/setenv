@@ -1,0 +1,3 @@
+#!/usr/bin/env ruby
+require 'set_env'
+SetEnv::Cli.start(ARGV)
