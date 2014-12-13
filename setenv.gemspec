@@ -13,13 +13,9 @@ Gem::Specification.new do |s|
   s.license     = 'MIT'
   s.executables << 'setenv'
 
-
   s.add_dependency 'thor'
-  s.add_dependency 'hashie'
   s.add_dependency 'bundler'
   s.add_dependency 'hashdiff'
 
   s.add_development_dependency 'rake'
-  s.add_development_dependency 'guard'
-  s.add_development_dependency 'guard-shell'
 end
