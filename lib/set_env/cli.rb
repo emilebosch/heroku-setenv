@@ -1,5 +1,7 @@
 require 'thor'
 require 'YAML'
+require 'hashdiff'
+require 'pp'
 
 module SetEnv
 	class Cli < Thor
@@ -11,54 +13,79 @@ module SetEnv
 
     desc "init", "Sets up your env environment"
     def init
+      # Check dependencies
+      %w(git heroku gpg tar).each { |k|  die "No #{k} command found, did u install #{k}?" if `which #{k}`.strip.empty? }
 
-      # create directories
+      die "An env directory is already present." if Dir.exists? "env"
+      
+      # Create env directories
       mkdir "./env/services"
       heroku_remotes.keys.each { |k|
-        d = "./env/.remotes/#{k}"
-        mkdir d
+        mkdir "./env/.remotes/#{k}"
       }
 
-      # add to .gitingore
-      # setup en check for gpg
+      # Add directories to env file
+      out "Adding to .gitignore"
+      `echo "\nenv" >> .gitignore`
+
+      for k,v in heroku_remotes
+        export k
+      end
     end
 
     desc "config", "Get the current settings"
     option :remote
     def config(remote)
-      puts heroku_command("config", remote)
+      out heroku_command("config", remote)
     end
 
-    desc "reset [REMOTE]", "Reset an REMOTE to its DEFAULT settings"
-    def reset
-    end
+    # desc "reset [REMOTE]", "Reset an REMOTE to its DEFAULT settings"
+    # def reset
+    # end
 
-    desc "set [REMOTE] [SERIVCE] [ENV]", "Set [remote] to [environment] settings"
-    def set
-    end
+    # desc "set [REMOTE] [SERIVCE] [ENV]", "Set [remote] to [environment] settings"
+    # def set
+    #   # SETS A SPECIFC REMOTE
+    # end
 
-    desc "add [SERVICE] [KEY=VAL]..", "Add a service "
-    def add(service)
-      puts
+    # desc "add [SERVICE] [KEY=VAL]..", "Add a service "
+    # def add(service)
+    #   # CREATES A NEW SERVICE FILE
+    # end
+
+    desc "diff", "Diff remote with current .yml"
+    def diff(remote)
+      live = get_remote_config(remote)
+      cached = YAML.load_file "env/#{remote}.yml"
+
+      diff = HashDiff.diff(live, cached)
+      for k in diff
+        out " #{k[0]} #{k[1]}"
+        out "\s\sOn Heroku\t\t:#{k[2]}"
+        out "\s\sLocal cache \t\t:#{k[3]}"
+      end
+
     end
 
     desc "clobber", "Removes all traces of setenv"
     def clobber
+      out "Removing all traces of setenv.."
       f.rm_rf "./env"
+      f.rm_f "env.tgz.gpg"
     end
 
     desc "encrypt", "Encrypt your env variables"
     def encrypt
-      `tar cvz -f env.tgz ./env && gpg -c env.tgz && rm -rf env.tgz && rm -rf ./env`
+      die "No ENV directory to encrypt" unless Dir.exists? "env"
+      out "Encryping.."
+      `tar cvz -f env.tgz ./env && gpg -c env.tgz && rm -rf ./env`
+      `rm -rf env.tgz` # always delete the tgz in order to ensure no accidental checkins.
     end
 
     desc "decrypt", "Decrypt your env variables"
     def decrypt
+      out "Decrypting.."
       `gpg env.tgz.gpg && tar -zxvf env.tgz && rm env.tgz`
-    end
-
-    desc "show", "Shows your env variables"
-    def show
     end
 
     desc "export", "Export settings"
@@ -128,7 +155,13 @@ module SetEnv
       a
     end
 
+    def die(str)
+      out str
+      exit 1
+    end
+    
     def write_yaml(file, obj)
+      out "writing yaml to: #{file}"
       File.open(file,'w') do |h| 
          h.write obj.to_yaml
       end      
