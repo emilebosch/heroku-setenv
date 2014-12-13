@@ -19,10 +19,10 @@ module SetEnv
       die "An env directory is already present." if Dir.exists? "env"
       
       # Create env directories
-      mkdir "./env/services"
-      heroku_remotes.keys.each { |k|
-        mkdir "./env/.remotes/#{k}"
-      }
+      # mkdir "./env/services"
+      # heroku_remotes.keys.each { |k|
+      #   mkdir "./env/.remotes/#{k}"
+      # }
 
       # Add directories to env file
       out "Adding to .gitignore"
@@ -33,7 +33,7 @@ module SetEnv
       end
     end
 
-    desc "config", "Get the current settings"
+    desc "config", "Show the current config settings on heroku"
     option :remote
     def config(remote)
       out heroku_command("config", remote)
@@ -53,18 +53,32 @@ module SetEnv
     #   # CREATES A NEW SERVICE FILE
     # end
 
+    desc "apply [remote]", "Applies the locall diff changes to heroku remote"
+    def apply(remote)
+      diff = get_diff remote   
+      pp diff 
+    end
+
     desc "diff", "Diff remote with current .yml"
     def diff(remote)
-      live = get_remote_config(remote)
-      cached = YAML.load_file "env/#{remote}.yml"
-
-      diff = HashDiff.diff(live, cached)
-      for k in diff
+      diffs   = get_diff remote
+      for k in diffs
         out " #{k[0]} #{k[1]}"
         out "\s\sOn Heroku\t\t:#{k[2]}"
         out "\s\sLocal cache \t\t:#{k[3]}"
       end
+    end
 
+    desc "plan", "Plan the changes to be done to heroku"
+    def plan(remote)
+      diffs   = get_diff remote      
+      plan    = diffs.group_by {|k|k[0]}
+      out "Changes to be done to #{remote} after this run"
+      out "--"
+      
+      plan['-'].each {|key| out "Will unset #{key[1]}=#{key[2]}" } if plan['-']      
+      plan['+'].each {|key| out "Will set #{key[1]}=#{key[2]}" } if plan['+']
+      plan['~'].each {|key| out "Will change #{key[1]}=#{key[2]} to: #{key[3]}" } if plan['~']
     end
 
     desc "clobber", "Removes all traces of setenv"
@@ -88,7 +102,7 @@ module SetEnv
       `gpg env.tgz.gpg && tar -zxvf env.tgz && rm env.tgz`
     end
 
-    desc "export", "Export settings"
+    desc "export", "Export settings from heroku and save to local file"
     option :remote
     def export(remote)
       config = get_remote_config(remote)
@@ -160,6 +174,12 @@ module SetEnv
       exit 1
     end
     
+    def get_diff(remote)
+      live = get_remote_config(remote)
+      cached = YAML.load_file "env/#{remote}.yml"
+      diff = HashDiff.diff(live, cached)
+    end     
+
     def write_yaml(file, obj)
       out "writing yaml to: #{file}"
       File.open(file,'w') do |h| 
