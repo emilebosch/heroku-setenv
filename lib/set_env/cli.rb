@@ -18,12 +18,6 @@ module SetEnv
 
       die "An env directory is already present." if Dir.exists? "env"
       
-      # Create env directories
-      # mkdir "./env/services"
-      # heroku_remotes.keys.each { |k|
-      #   mkdir "./env/.remotes/#{k}"
-      # }
-
       # Add directories to env file
       out "Adding to .gitignore"
       `echo "\nenv" >> .gitignore`
@@ -39,27 +33,12 @@ module SetEnv
       out heroku_command("config", remote)
     end
 
-    # desc "reset [REMOTE]", "Reset an REMOTE to its DEFAULT settings"
-    # def reset
-    # end
-
-    # desc "set [REMOTE] [SERIVCE] [ENV]", "Set [remote] to [environment] settings"
-    # def set
-    #   # SETS A SPECIFC REMOTE
-    # end
-
-    # desc "add [SERVICE] [KEY=VAL]..", "Add a service "
-    # def add(service)
-    #   # CREATES A NEW SERVICE FILE
-    # end
-
-    desc "apply [remote]", "Applies the locall diff changes to heroku remote"
+    desc "apply [remote]", "Applies the plan to heroku remote"
     def apply(remote)
-      diff = get_diff remote   
-      pp diff 
+
     end
 
-    desc "diff", "Diff remote with current .yml"
+    desc "diff [remote]", "Diff remote with current .yml"
     def diff(remote)
       diffs   = get_diff remote
       for k in diffs
@@ -69,16 +48,38 @@ module SetEnv
       end
     end
 
-    desc "plan", "Plan the changes to be done to heroku"
+    desc "plan [remote]", "Plan the changes to be done to heroku"
     def plan(remote)
+      app = heroku_remotes[remote]
+
       diffs   = get_diff remote      
       plan    = diffs.group_by {|k|k[0]}
-      out "Changes to be done to #{remote} after this run"
-      out "--"
+
+      die "No changes between #{remote} and cache" unless plan.length > 0
+
+      out "Changes to #{remote} (#{app})\n\n"
       
-      plan['-'].each {|key| out "Will unset #{key[1]}=#{key[2]}" } if plan['-']      
-      plan['+'].each {|key| out "Will set #{key[1]}=#{key[2]}" } if plan['+']
-      plan['~'].each {|key| out "Will change #{key[1]}=#{key[2]} to: #{key[3]}" } if plan['~']
+      plan['-'].each {|key| out "- unset #{key[1]}=#{key[2]}" } if plan['-']      
+      plan['+'].each {|key| out "- set #{key[1]}=#{key[2]}" } if plan['+']
+      plan['~'].each {|key| out "- change #{key[1]}=#{key[2]} to '#{key[3]}'" } if plan['~']
+
+      # Write out planfile
+
+      cmds = []
+      cmds << ("config:unset " + plan['-'].collect { |k| k[1] }.join(" ")) if plan['-']
+
+      sets = []
+      sets.concat plan['~'].collect { |k| [k[1],k[3]] } if plan['~']
+      sets.concat plan['+'].collect { |k| [k[1],k[2]] } if plan['+']
+
+      cmds << ("config:set " + sets.collect { |k| "#{k[0]}=#{k[1]}" }.join(" ")) if sets.length > 0
+
+      path  = "./env/#{remote}.plan"
+      lines = cmds.collect { |k| "heroku --app #{app} #{k}" }
+      plan  = lines.join("\n")
+      File.write path, plan
+
+      out "\nPlanfile:\n\n#{plan}"
     end
 
     desc "clobber", "Removes all traces of setenv"
