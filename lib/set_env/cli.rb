@@ -17,9 +17,11 @@ module SetEnv
       %w(git heroku gpg tar).each { |k|  die "No #{k} command found, did u install #{k}?" if `which #{k}`.strip.empty? }
 
       die "An env directory is already present." if Dir.exists? "env"
-      
+      mkdir "./env"
+      mkdir "./env/tmp"
+
       # Add directories to env file
-      out "Adding to .gitignore"
+      out "Adding env directory to .gitignore"
       `echo "\nenv" >> .gitignore`
 
       for k,v in heroku_remotes
@@ -35,7 +37,13 @@ module SetEnv
 
     desc "apply [remote]", "Applies the plan to heroku remote"
     def apply(remote)
+      digest = get_digest(remote)
+      path  = "./env/tmp/#{remote}-#{digest}.plan"
 
+      die "Plan file '#{path}' doesn't exist.\nDid you run `setenv plan` first?" unless File.exists? path
+      puts "Applying.."
+      out = command "bash #{path}"
+      puts out
     end
 
     desc "diff [remote]", "Diff remote with current .yml"
@@ -56,7 +64,6 @@ module SetEnv
       plan    = diffs.group_by {|k|k[0]}
 
       die "No changes between #{remote} and cache" unless plan.length > 0
-
       out "Changes to #{remote} (#{app})\n\n"
       
       plan['-'].each {|key| out "- unset #{key[1]}=#{key[2]}" } if plan['-']      
@@ -64,7 +71,6 @@ module SetEnv
       plan['~'].each {|key| out "- change #{key[1]}=#{key[2]} to '#{key[3]}'" } if plan['~']
 
       # Write out planfile
-
       cmds = []
       cmds << ("config:unset " + plan['-'].collect { |k| k[1] }.join(" ")) if plan['-']
 
@@ -74,12 +80,14 @@ module SetEnv
 
       cmds << ("config:set " + sets.collect { |k| "#{k[0]}=#{k[1]}" }.join(" ")) if sets.length > 0
 
-      path  = "./env/#{remote}.plan"
-      lines = cmds.collect { |k| "heroku --app #{app} #{k}" }
+      digest = get_digest(remote)
+      path  = "./env/tmp/#{remote}-#{digest}.plan"
+
+      lines = cmds.collect { |k| "heroku #{k} --app #{app}" }
       plan  = lines.join("\n")
       File.write path, plan
 
-      out "\nPlanfile:\n\n#{plan}"
+      out "\nPlanfile written to #{path}:\n\n#{plan}"
     end
 
     desc "clobber", "Removes all traces of setenv"
@@ -93,7 +101,7 @@ module SetEnv
     def encrypt
       die "No ENV directory to encrypt" unless Dir.exists? "env"
       out "Encryping.."
-      `tar cvz -f env.tgz ./env && gpg -c env.tgz && rm -rf ./env`
+      `tar cvz --exclude='*.plan' -f env.tgz ./env && gpg -c env.tgz && rm -rf ./env`
       `rm -rf env.tgz` # always delete the tgz in order to ensure no accidental checkins.
     end
 
@@ -175,6 +183,12 @@ module SetEnv
       exit 1
     end
     
+    def get_digest(remote)
+      remote_conf = get_remote_config(remote)
+      cached_conf = YAML.load_file "env/#{remote}.yml"
+      Digest::MD5.hexdigest "#{remote_conf.to_s}-#{cached_conf.to_s}"
+    end
+
     def get_diff(remote)
       live = get_remote_config(remote)
       cached = YAML.load_file "env/#{remote}.yml"
