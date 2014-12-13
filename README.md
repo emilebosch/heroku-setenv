@@ -1,107 +1,47 @@
 # Heroku SetEnv
 
-**OBJECTIVE:** Make environment management easy to manage and prevent clusterfucks. Additionally encrypt enviroment so we can just version it.
-
-- Allows setting env for services (prod/dev/staging/etc)
-- Make visible what the enviroments are runing
-- Allows encryption fo env so safe to check in to git
-- Optionally prevent boot of app when env are  not set
-- Infer environments from git heroku remotes
-
-To use:
-
-- Define services (with staging/production/etc)
-- Apply environments
+WARNING: This is still under development. I wouldn't recommend using it right now.
 
 Dependencies:
 
 - GPG
 - Heroku Toolbelt
+- Git
 
 
-### Setting up
+### Usage
 
 ```
 gem install setenv
 ```
-Lets then init. This creates an env directory and you can setup a password to decrypt.
+Lets then init. This creates an env directory, adds env to gitignore and epports the existing yamls.
 
 ```
 setenv init
 ```
 
-### Update a environment with its dev ENV variables
+This will create `./env/$remote-name.yml` witht the Heroku config of each remote.
 
-Update `development` with current services set all to `.dev`. This basically collects the `.dev` for the development. Does a diff. And then applies the changes in one go.
+Go to `./env/` edit there on of the production yamls
 
-```
-setenv reset development 
-```
-
-### Set the staging db to production db.
-
-It wil warn you fail you try to set something to production when you are on an other enviroment than production. You' can skip this
-when you add the `--confirm`.
+Then run a plan, to let it figure out what to update, remove or delete.
 
 ```
-setenv set staging db production
+bundle exec setenv plan staging
 ```
 
-### Show what staging is running
+It will write a plan file. Check if you're cool with the changes.
+
+Then run:
 
 ```
-setenv show staging 
+bundle exec setenv apply staging
 ```
 
-Output will be:
+Then when this is all done:
 
 ```
-Staging is running:
-
-- DB [PROD] * WARNING: Different! *
-- Mailchimp [STAGING]
-- ES [STAGING]
-
-Run: `senenv reset staging` to update staging to defaults.
-
+bundle exec setenv encrypt
 ```
 
-### Encrypting
-
-Adding `/env/*.yml` to your gitignore. Makes sure you dont have accidental checkins.
-checkins. 
-
-Zips and encrypts the settings with your idrsa
-
-```
-setenv crypt
-```
-
-Decrypts the settings
-
-```
-setenv decrypt
-```
-
-## To figure out
-
-Services:
-
-```
-- db
-- mailchimp
-- s3
-- es/bonsay
-- mandril
-- slack
-```
-
-Dir structure
-
-```
-./env/mailchimp.template.yml
-./env/mailchimp.production.yml
-./env/mailchimp.staging.yml
-./env/mailchimp.development.yml
-```
-
+Check in your stuff :)
